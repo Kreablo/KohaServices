@@ -1,0 +1,8 @@
+MANIFEST
+Makefile.PL
+lib/Plack/Middleware/SetEnvFromQueryString.pm
+lib/KohaServices/LoanStatus.pm
+lib/KohaServices/RecordMatcher/IdMapping.pm
+lib/KohaServices/RecordMatcher/Custom.pm
+lib/KohaServices/OutputFormat/LibrisXml.pm
+lib/KohaServices/RedirectBibitem.pm
