@@ -1,6 +1,11 @@
 
 package KohaServices::OutputFormat::LibrisXml;
 
+use Modern::Perl;
+use XML::DOM;
+
+use parent 'KohaServices::OutputFormat';
+
 sub new {
     my $class = shift;
 
@@ -22,16 +27,6 @@ sub new {
     return $self;
 }
 
-sub  authval {
-    my $row = shift;
-    my $name = shift;
-
-    if (defined($row->{"${name}_lib_opac"})) {
-	return $row->{"${name}_lib_opac"};
-    }
-    return $row->{"${name}_lib"};
-};
-
 sub add {
     my ($self, $item, $tag, $content) = @_;
     my $element = $self->{doc}->createElement( $tag );
@@ -41,54 +36,23 @@ sub add {
     return $item;
 };
 
-sub status {
-    my ($self, $row) = @_;
-    if (defined($row->{'date_due'})) {
-	return ("Utlånad$reserved",
-		"Åter: ",
-		substr($row->{'date_due'}, 0, 10));
-    }
-    my $notloan = authval($row, 'notloan');
-    if (defined($notloan)) {
-	return ($notloan, '', '');
-    }
-    my $lost = authval($row, 'lost');
-    if (defined($lost)) {
-	return ($lost, defined($row->{'itemlost_on'}) ? ('Förlorad den: ', substr($row->{'itemlost_on'}, 0, 10))  : ('', ''));
-    }
-    my $damaged = authval($row, 'damaged');
-    if (defined($damaged)) {
-	return ($damaged, '', '');
-    }
-    if (defined($row->{'n_reservations'}) && $row->{'n_reservations'} > 0) {
-	return ($reserved, '', '');
-    }
-    return ('Tillgänglig', '', '');
-};
-
-
 sub add_row {
     my ($self, $row, $count) = @_;
 
-    my $doc = $self->{$doc};
-
-
+    my $doc = $self->{doc};
 
     my $item = $doc->createElement( 'Item' );
-
     
 
     $self->add($item, 'Item_No', $count++ );
     $self->add($item, 'Item_CallNo', $row->{itemcallnumber} );
-    $self->add($item, 'Location', authval($row, 'loc') );
+    $self->add($item, 'Location', $self->authval($row, 'loc') );
     $self->add($item, 'UniqueItemId', $row->{itemnumber} );
 
-    my $reserved = $row->{n_reservations} > 0 ? ' reserverad med ' . $row->{n_reservations} . ' på kö.' : '';
-
-    my ($s, $sdd, $sd) = $self->status($row);
+    my ($available, $s, $sdd, $sd) = $self->status($row, $reserved);
 
     $self->add($item, 'Status', $s );
-    $self->add($item 'Status_Date_Description', $sdd );
+    $self->add($item, 'Status_Date_Description', $sdd );
     $self->add($item, 'Status_Date', $sd );
 
     $self->{item_info}->appendChild( $item );

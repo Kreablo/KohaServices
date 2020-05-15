@@ -9,7 +9,14 @@ use Data::Dumper;
 sub call {
     my ($self, $env) = @_;
 
-    my %qq = URI::Query->new($env->{QUERY_STRING})->hash();
+    my $key;
+    for my $k (keys %{$env}) {
+	if ($k =~ /query_string/i) {
+	    $key = $k;
+	}
+    }
+    
+    my %qq = URI::Query->new($env->{$key})->hash();
 
     for my $param (@{$self->{query_parameters}}) {
         if (defined($qq{$param})) {

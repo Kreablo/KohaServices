@@ -7,12 +7,12 @@ package KohaServices::LoanStatus;
 our $VERSION = '1.0';
 
 use Modern::Perl;
-use XML::DOM;
 
 use C4::Context;
-use IdMapping;
 use Data::Dumper;
 use utf8;
+use URI::Query;
+
 
 sub _fail {
     my $msg = shift;
@@ -24,84 +24,108 @@ sub new {
     my $class = shift;
     my $conf = shift;
 
-    require $conf->{output_format};
-    require $conf->{record_matcher};
+    eval "require $conf->{output_format};" .
+         "require $conf->{record_matcher};";
+
+    if ($@) {
+        die $@;
+    }
+    
+    my $context = new C4::Context;
     
     my $out = $conf->{output_format}->new($conf);
     my $matcher = $conf->{record_matcher}->new($conf);
 
+    my $self = {
+        matcher => $matcher
+    };
+    bless $self, "$class";
+
     my $app = sub {
-	my $env = shift;
+        my $env = shift;
 
-	my ($success, $res) = $matcher->match($env);
+        my %qq = URI::Query->new($env->{QUERY_STRING})->hash();
 
-	unless ($success) {
-	    return _fail($res);
-	}
+        my $params = {};
 
-	my $row = $res;
+        for my $param (@{$self->parameters()}) {
+            if (defined($qq{$param})) {
+                $params->{$param} = $qq{$param};
+            }
+        }
 
-	unless (defined($row) && defined($row->{biblionumber})) {
-		return ['404', [], [] ];
-	}
+        my ($success, $res) = $matcher->match($params);
 
-	my $biblionumber = $row->{biblionumber};
-	
-	my $q = <<'EOF';
+        unless ($success) {
+            return _fail($res);
+        }
+
+        my $row = $res;
+
+        unless (defined($row) && defined($row->{biblionumber})) {
+            return ['404', [], [] ];
+        }
+
+        my $biblionumber = $row->{biblionumber};
+        
+        my $q = <<'EOF';
 SELECT DISTINCT items.itemnumber,
                 items.biblionumber,
                 itemcallnumber,
-				ccode_values.lib_opac       AS ccode_lib_opac,
-				ccode_values.lib            AS ccode_lib,
-				loc_values.lib_opac         AS loc_lib_opac,
-				loc_values.lib              AS loc_lib,
-				notloan_values.lib_opac     AS notloan_lib_opac,
-				notloan_values.lib          AS notloan_lib,
-				damaged_values.lib_opac     AS damaged_lib_opac,
-				damaged_values.lib          AS damaged_lib,
-				lost_values.lib_opac        AS lost_lib_opac,
-				lost_values.lib             AS lost_lib,
-	            itemlost_on,
+                items.holdingbranch,
+	        items.barcode,
+                branches.branchname AS branchname,
+                ccode,
+                ccode_values.lib_opac       AS ccode_lib_opac,
+                ccode_values.lib            AS ccode_lib,
+                location,
+                loc_values.lib_opac         AS loc_lib_opac,
+                loc_values.lib              AS loc_lib,
+                notforloan,
+                notloan_values.lib_opac     AS notloan_lib_opac,
+                notloan_values.lib          AS notloan_lib,
+                damaged,
+                damaged_values.lib_opac     AS damaged_lib_opac,
+                damaged_values.lib          AS damaged_lib,
+                itemlost,
+                lost_values.lib_opac        AS lost_lib_opac,
+                lost_values.lib             AS lost_lib,
+                itemlost_on,
                 issues.date_due,
-				(SELECT COUNT(itemnumber) FROM hold_fill_targets WHERE hold_fill_targets.itemnumber = items.itemnumber) +
+                                (SELECT COUNT(itemnumber) FROM hold_fill_targets WHERE hold_fill_targets.itemnumber = items.itemnumber) +
                 (SELECT COUNT(reserve_id) FROM reserves          WHERE reserves.itemnumber          = items.itemnumber) +
-				(SELECT COUNT(itemnumber) FROM tmp_holdsqueue    WHERE tmp_holdsqueue.itemnumber    = items.itemnumber) AS n_reservations
+                                (SELECT COUNT(itemnumber) FROM tmp_holdsqueue    WHERE tmp_holdsqueue.itemnumber    = items.itemnumber) AS n_reservations
 FROM items
+     JOIN branches ON branchcode = holdingbranch
      LEFT OUTER JOIN authorised_values AS ccode_values   ON ccode_values.authorised_value=ccode        AND ccode_values.category   = 'CCODE'
      LEFT OUTER JOIN authorised_values AS loc_values     ON loc_values.authorised_value=location       AND loc_values.category     = 'LOC'
-	 LEFT OUTER JOIN authorised_values AS notloan_values ON notloan_values.authorised_value=notforloan AND notloan_values.category = 'NOT_LOAN'
-	 LEFT OUTER JOIN authorised_values AS damaged_values ON damaged_values.authorised_value=damaged    AND damaged_values.category = 'DAMAGED'
-	 LEFT OUTER JOIN authorised_values AS lost_values    ON lost_values.authorised_value=itemlost      AND lost_values.category    = 'LOST'
+         LEFT OUTER JOIN authorised_values AS notloan_values ON notloan_values.authorised_value=notforloan AND notloan_values.category = 'NOT_LOAN'
+         LEFT OUTER JOIN authorised_values AS damaged_values ON damaged_values.authorised_value=damaged    AND damaged_values.category = 'DAMAGED'
+         LEFT OUTER JOIN authorised_values AS lost_values    ON lost_values.authorised_value=itemlost      AND lost_values.category    = 'LOST'
      LEFT OUTER JOIN issues     ON items.itemnumber=issues.itemnumber
      LEFT OUTER JOIN reserves   ON items.itemnumber=reserves.itemnumber
 WHERE items.biblionumber = ?;
 EOF
 
-	my $sth = $context->dbh->prepare($q);
-	my $rv = $sth->execute( $biblionumber );
+        my $sth = $context->dbh->prepare($q);
+        my $rv = $sth->execute( $biblionumber );
 
-	return _fail( 'Query failed.' ) unless $rv;
+        return _fail( 'Query failed.' ) unless $rv;
 
-	my $count = 1;
+        my $count = 1;
 
-	while (my $row = $sth->fetchrow_hashref) {
-	    $out->add_row($row, $count);
-	}
+        while (my $row = $sth->fetchrow_hashref) {
+            $out->add_row($row, $count);
+        }
 
-
-	return  [
+        return  [
           '200',
           [ 'Content-Type' => $out->content_type ],
           [ $out->output ], # or IO::Handle-like object
         ];
     };
 
-    my $self = {
-	app => $app,
-	matcher => $macher
-    };
-
-    bless $self, "$class";
+    $self->{app} = $app;
     return $self;
 }
 

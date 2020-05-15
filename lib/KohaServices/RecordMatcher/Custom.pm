@@ -1,5 +1,8 @@
 package KohaServices::RecordMatcher::Custom;
 
+use Modern::Perl;
+use KohaServices::OutputFormat::IdMapping;
+use C4::Context;
 
 sub new {
     my ($class, $conf) = @_;
@@ -17,7 +20,7 @@ sub match {
 
     my $context = new C4::Context;
 
-    my $idmapping = new IdMapping( { context => $context });
+    my $idmapping = new KohaServices::RecordMatcher::IdMapping( { context => $context });
 
     my $row;
 
