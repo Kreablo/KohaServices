@@ -39,6 +39,8 @@ sub add {
 sub add_row {
     my ($self, $row, $count) = @_;
 
+    my $reserved = $row->{n_reservations} > 0 ? 'Reserverad med ' . $row->{n_reservations} . ' på kö.' : '';
+
     my $doc = $self->{doc};
 
     my $item = $doc->createElement( 'Item' );

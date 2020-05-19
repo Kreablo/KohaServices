@@ -5,7 +5,9 @@ lib/KohaServices/LoanStatus.pm
 lib/KohaServices/RecordMatcher/IdMapping.pm
 lib/KohaServices/RecordMatcher/Custom.pm
 lib/KohaServices/RecordMatcher/Biblionumber.pm
+lib/KohaServices/RecordMatcher/KBiblioId.pm
 lib/KohaServices/OutputFormat.pm
 lib/KohaServices/OutputFormat/LibrisXml.pm
 lib/KohaServices/OutputFormat/SummonJson.pm
 lib/KohaServices/RedirectBibitem.pm
+lib/KohaServices/RedirectReserve.pm

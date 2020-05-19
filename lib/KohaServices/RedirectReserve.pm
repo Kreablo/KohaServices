@@ -1,4 +1,4 @@
-package KohaServices::RedirectBibitem;
+package KohaServices::RedirectReserve;
 
 use Modern::Perl;
 
@@ -27,7 +27,7 @@ sub new {
 	my ($succes, $ret) = $matcher->match($env);
 
 	unless ($success) {
-	    warn "RedirectBibitem: $ret\n";
+	    warn "RedirectReserve: $ret\n";
 	    return [
 		'502'
 		['Location' => '/cgi-bin/koha/errors/500.pl'],
@@ -45,7 +45,7 @@ sub new {
 	} elsif (defined($row) && defined($row->{biblionumber})) {
 	    return [
 		'301',
-		['Location' => '/bib/' . uri_escape($row->{biblionumber})],
+		['Location' => '/cgi-bin/koha/opac-reserve.pl?biblionumber=' . uri_escape($row->{biblionumber})],
 		[]
 		];
 	} else {
