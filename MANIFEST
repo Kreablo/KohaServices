@@ -11,3 +11,4 @@ lib/KohaServices/OutputFormat/LibrisXml.pm
 lib/KohaServices/OutputFormat/SummonJson.pm
 lib/KohaServices/RedirectBibitem.pm
 lib/KohaServices/RedirectReserve.pm
+lib/KohaServices/App.pm

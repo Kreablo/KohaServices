@@ -1,18 +1,11 @@
 package KohaServices::LoanStatus;
 
-@ISA         = qw(Exporter);
-@EXPORT      = qw(loan_status_app);
-@EXPORT_OK   = qw();
-
-our $VERSION = '1.1';
-
 use Modern::Perl;
 
 use C4::Context;
 use Data::Dumper;
 use utf8;
-use URI::Query;
-
+use parent 'KohaServices::App';
 
 sub _fail {
     my $msg = shift;
@@ -44,16 +37,7 @@ sub new {
     my $app = sub {
         my $env = shift;
 
-        my %qq = URI::Query->new($env->{QUERY_STRING})->hash();
-
-        my $params = {};
-
-        for my $param (@{$self->parameters()}) {
-            if (defined($qq{$param})) {
-                $params->{$param} = $qq{$param};
-            }
-        }
-
+	my $params = $self->get_parameters($env);
         my ($success, $res) = $matcher->match($params);
 
         unless ($success) {
@@ -67,8 +51,25 @@ sub new {
         }
 
         my $biblionumber = $row->{biblionumber};
-        
-        my $q = <<'EOF';
+        my $branchcode = $params->{branchcode};
+	my $where = '1';
+	my @binds = ();
+	if (defined $branchcode) {
+	    my $first = 1;
+	    my $branchcodes = '';
+	    for my $b (split ',', $branchcode) {
+		if ($first) {
+		    $first = 0;
+		} else {
+		    $branchcodes .= ' OR ';
+		}
+		$branchcodes .= 'items.holdingbranch = ?';
+		push @binds, $b;
+	    }
+	    $where .= " AND ($branchcodes)";
+	}
+
+        my $q = <<EOF;
 SELECT DISTINCT items.itemnumber,
                 items.biblionumber,
                 itemcallnumber,
@@ -90,6 +91,9 @@ SELECT DISTINCT items.itemnumber,
                 itemlost,
                 lost_values.lib_opac        AS lost_lib_opac,
                 lost_values.lib             AS lost_lib,
+                restricted,
+                restricted_values.lib_opac        AS restricted_lib_opac,
+                restricted_values.lib             AS restricted_lib,
                 itemlost_on,
                 issues.date_due,
                                 (SELECT COUNT(itemnumber) FROM hold_fill_targets WHERE hold_fill_targets.itemnumber = items.itemnumber) +
@@ -102,20 +106,23 @@ FROM items
          LEFT OUTER JOIN authorised_values AS notloan_values ON notloan_values.authorised_value=notforloan AND notloan_values.category = 'NOT_LOAN'
          LEFT OUTER JOIN authorised_values AS damaged_values ON damaged_values.authorised_value=damaged    AND damaged_values.category = 'DAMAGED'
          LEFT OUTER JOIN authorised_values AS lost_values    ON lost_values.authorised_value=itemlost      AND lost_values.category    = 'LOST'
+         LEFT OUTER JOIN authorised_values AS restricted_values  ON restricted_values.authorised_value=restricted      AND restricted_values.category    = 'RESTRICTED'
      LEFT OUTER JOIN issues     ON items.itemnumber=issues.itemnumber
      LEFT OUTER JOIN reserves   ON items.itemnumber=reserves.itemnumber
-WHERE items.biblionumber = ?;
+WHERE $where AND items.biblionumber = ?;
 EOF
 
         my $sth = $context->dbh->prepare($q);
-        my $rv = $sth->execute( $biblionumber );
+
+	push @binds, $biblionumber;
+        my $rv = $sth->execute( @binds );
 
         return _fail( 'Query failed.' ) unless $rv;
 
-        my $count = 1;
+	$out->reset();
 
         while (my $row = $sth->fetchrow_hashref) {
-            $out->add_row($row, $count);
+            $out->add_row($row);
         }
 
         return  [
@@ -129,12 +136,6 @@ EOF
     return $self;
 }
 
-
-sub parameters {
-    my $self = shift;
-
-    return $self->{matcher}->parameters;
-}
 
 sub app {
     my $self = shift;

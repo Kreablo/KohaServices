@@ -5,9 +5,23 @@ use Modern::Perl;
 use XML::DOM;
 
 use parent 'KohaServices::OutputFormat';
+use utf8;
 
 sub new {
     my $class = shift;
+
+    my $self = {
+    };
+
+    bless $self, $class;
+
+    $self->reset();
+
+    return $self;
+}
+
+sub reset {
+    my $self = shift;
 
     my $doc = new XML::DOM::Document();
 
@@ -17,14 +31,12 @@ sub new {
     $item_info->setAttribute( 'xsi:noNamespaceSchemaLocation', 'http://appl.libris.kb.se/LIBRISItem.xsd' );
     $doc->appendChild( $item_info );
 
-    my $self = {
-	doc => $doc,
-	item_info => $item_info
-    };
 
-    bless $self, $class;
+    $self->{doc} = $doc;
+    $self->{item_info} = $item_info;
+    $self->{count} = 1;
 
-    return $self;
+    $self->SUPER::reset();
 }
 
 sub add {
@@ -45,10 +57,11 @@ sub add_row {
 
     my $item = $doc->createElement( 'Item' );
     
-
-    $self->add($item, 'Item_No', $count++ );
-    $self->add($item, 'Item_CallNo', $row->{itemcallnumber} );
-    $self->add($item, 'Location', $self->authval($row, 'loc') );
+    $self->add($item, 'Item_No', $self->{count}++ );
+    $self->add($item, 'Call_No', $row->{itemcallnumber} );
+    my $b = $row->{branchname} // '';
+    my $l = $self->authval($row, 'loc') // '';
+    $self->add($item, 'Location',  $b . ($b ne '' && $l ne '' ? ', ' : '') . $l );
     $self->add($item, 'UniqueItemId', $row->{itemnumber} );
 
     my ($available, $s, $sdd, $sd) = $self->status($row, $reserved);
@@ -56,6 +69,13 @@ sub add_row {
     $self->add($item, 'Status', $s );
     $self->add($item, 'Status_Date_Description', $sdd );
     $self->add($item, 'Status_Date', $sd );
+
+    my ($policy, $p) = $self->policy($row);
+    if ($policy) {
+	$self->add($item, 'Loan_Policy', $p);
+    } else {
+	$self->add($item, 'Loan_Policy', 'Lånas ut');
+    }
 
     $self->{item_info}->appendChild( $item );
 }

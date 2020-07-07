@@ -3,8 +3,8 @@ package KohaServices::RedirectReserve;
 use Modern::Perl;
 
 use C4::Context;
-use IdMapping;
 use URI::Escape;
+use parent 'KohaServices::App';
 
 sub new {
     my $class = shift;
@@ -13,23 +13,29 @@ sub new {
     my $self = {};
 
     bless $self, $class;
-    require $conf->{record_matcher};
+
+    eval "require $conf->{record_matcher};";
+
+    if ($@) {
+        die $@;
+    }
+
+    my $matcher = $conf->{record_matcher}->new($conf);
+    $self->{matcher} = $matcher;
 
     my $app = sub {
 	my $env = shift;
 
 	my $context = new C4::Context;
 
-	my $matcher = $conf->{record_matcher}->new($conf);
-
 	my $row;
 
-	my ($succes, $ret) = $matcher->match($env);
+	my ($success, $ret) = $matcher->match($self->get_parameters($env));
 
 	unless ($success) {
 	    warn "RedirectReserve: $ret\n";
 	    return [
-		'502'
+		'502',
 		['Location' => '/cgi-bin/koha/errors/500.pl'],
 		[]
 		];
@@ -54,7 +60,7 @@ sub new {
     };
 
 
-    $self->{app} = $ap;
+    $self->{app} = $app;
 
     return $self;
 }

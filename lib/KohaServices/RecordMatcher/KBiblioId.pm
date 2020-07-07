@@ -21,6 +21,7 @@ sub match {
     my $dbh = $context->dbh;
 
     my $isbnjoin = '';
+    my $branchjoin = '';
 
     my $where = '1';
     my $ok = 0;
@@ -28,6 +29,7 @@ sub match {
     my $isbn = $env->{isbn};
     my $l99 = $env->{libris_99};
     my $issn = $env->{issn};
+    my $branchcode = $env->{branchcode};
 
     if (!(defined $bibid || defined $isbn || defined $l99 || defined $issn)) {
 	return (0, 'No search parameter!');
@@ -46,7 +48,7 @@ sub match {
     }
     if (defined $isbn) {
 	$isbnjoin = 'JOIN k_all_isbns USING(biblionumber)';
-	$where .=
+	$where .= ' AND k_all_isbns.isbn = normalize_isbn(?)';
 	push @binds, $isbn;
     }
 
@@ -55,6 +57,22 @@ sub match {
 	push @binds, $issn;
     }
 
+    if (defined $branchcode) {
+	my $first = 1;
+	my $branchcodes = '';
+	$branchjoin = 'JOIN items USING(biblionumber)';
+	for my $b (split ',', $branchcode) {
+	    if ($first) {
+		$first = 0;
+	    } else {
+		$branchcodes .= ' OR ';
+	    }
+	    $branchcodes .= 'items.holdingbranch = ?';
+	    push @binds, $b;
+	}
+
+	$where .= " AND ($branchcodes)";
+    }
 
     my $q = <<"EOF";
 SELECT DISTINCT biblionumber, biblioitems.biblioitemnumber FROM
@@ -62,11 +80,11 @@ SELECT DISTINCT biblionumber, biblioitems.biblioitemnumber FROM
     JOIN biblio USING (biblionumber)
     JOIN biblioitems USING(biblionumber)
     $isbnjoin
+    $branchjoin
 WHERE
     $where
 LIMIT 1;
 EOF
-    
 
     my $sth = $dbh->prepare($q);
     my $rv = $sth->execute(@binds);
@@ -80,12 +98,12 @@ EOF
     if (!defined $res) {
 	return (1, {});
     }
-    
+
     return (1, $res);
 }
 
 sub parameters {
-    return ['bibid', 'isbn', 'issn', 'libris_bibid', 'libris_isbn', 'libris_issn', 'libris_99'];
+    return ['bibid', 'isbn', 'issn', 'libris_bibid', 'libris_isbn', 'libris_issn', 'libris_99', 'branchcode'];
 }
 
 
