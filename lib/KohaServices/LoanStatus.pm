@@ -6,6 +6,7 @@ use C4::Context;
 use Data::Dumper;
 use utf8;
 use parent 'KohaServices::App';
+use strict;
 
 sub _fail {
     my $msg = shift;
@@ -30,7 +31,8 @@ sub new {
     my $matcher = $conf->{record_matcher}->new($conf);
 
     my $self = {
-        matcher => $matcher
+        matcher => $matcher,
+	output => $out
     };
     bless $self, "$class";
 
@@ -75,6 +77,8 @@ SELECT DISTINCT items.itemnumber,
                 itemcallnumber,
                 items.holdingbranch,
 	        items.barcode,
+                items.itype AS itemtype,
+                itemtypes.description AS itemtype_description,
                 branches.branchname AS branchname,
                 ccode,
                 ccode_values.lib_opac       AS ccode_lib_opac,
@@ -82,7 +86,7 @@ SELECT DISTINCT items.itemnumber,
                 location,
                 loc_values.lib_opac         AS loc_lib_opac,
                 loc_values.lib              AS loc_lib,
-                notforloan,
+                items.notforloan,
                 notloan_values.lib_opac     AS notloan_lib_opac,
                 notloan_values.lib          AS notloan_lib,
                 damaged,
@@ -103,12 +107,13 @@ FROM items
      JOIN branches ON branchcode = holdingbranch
      LEFT OUTER JOIN authorised_values AS ccode_values   ON ccode_values.authorised_value=ccode        AND ccode_values.category   = 'CCODE'
      LEFT OUTER JOIN authorised_values AS loc_values     ON loc_values.authorised_value=location       AND loc_values.category     = 'LOC'
-         LEFT OUTER JOIN authorised_values AS notloan_values ON notloan_values.authorised_value=notforloan AND notloan_values.category = 'NOT_LOAN'
+         LEFT OUTER JOIN authorised_values AS notloan_values ON notloan_values.authorised_value=items.notforloan AND notloan_values.category = 'NOT_LOAN'
          LEFT OUTER JOIN authorised_values AS damaged_values ON damaged_values.authorised_value=damaged    AND damaged_values.category = 'DAMAGED'
          LEFT OUTER JOIN authorised_values AS lost_values    ON lost_values.authorised_value=itemlost      AND lost_values.category    = 'LOST'
          LEFT OUTER JOIN authorised_values AS restricted_values  ON restricted_values.authorised_value=restricted      AND restricted_values.category    = 'RESTRICTED'
      LEFT OUTER JOIN issues     ON items.itemnumber=issues.itemnumber
      LEFT OUTER JOIN reserves   ON items.itemnumber=reserves.itemnumber
+     LEFT OUTER JOIN itemtypes ON items.itype = itemtypes.itemtype
 WHERE $where AND items.biblionumber = ?;
 EOF
 
@@ -119,7 +124,7 @@ EOF
 
         return _fail( 'Query failed.' ) unless $rv;
 
-	$out->reset();
+	$out->reset( $params );
 
         while (my $row = $sth->fetchrow_hashref) {
             $out->add_row($row);

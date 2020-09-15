@@ -3,6 +3,8 @@ package KohaServices::OutputFormat;
 use Koha::Items;
 use Koha::IssuingRules;
 use utf8;
+use strict;
+use Data::Dumper;
 
 sub status {
     my ($self, $row) = @_;
@@ -48,11 +50,23 @@ sub policy {
 
     my $item = Koha::Items->find( $row->{itemnumber} );
 
+    my $params = {
+	    itemtype     => { 'in' => [$item->effective_itemtype, '*'] }
+    };
+
+    my $branchcode = $self->params->{branchcode};
+    my $categorycode = $self->params->{categorycode};
+
+    if (defined $categorycode) {
+	$params->{categorycode} = { 'in' => [(split ',', $categorycode), '*'] };
+    }
+
+    if (defined $branchcode) {
+	$params->{branchcode} = { 'in' => [(split ',', $branchcode), '*'] };
+    }
+
     my @rules = Koha::IssuingRules->search(
-	{
-	    itemtype     => { 'in' => [$item->effective_itemtype, '*'] },
-	    branchcode   => { 'in' => [(split ',', $branchcode), '*'] }
-	},
+	$params,
 	{
 	    order_by => {
 		-desc => [ 'branchcode', 'categorycode', 'itemtype' ]
@@ -63,13 +77,15 @@ sub policy {
     my $hasitype = 0;
     my $hasbranch = 0;
     for my $rule (@rules) {
-	my $length = $rule->issuelength . ( $rule->lengthunit eq 'days' ? ' dagar' : ' timmar' );
+	next unless defined $rule->issuelength && $rule->issuelength;
+	my $pl = $rule->issuelength != 1;
+	my $length = $rule->issuelength . ( $rule->lengthunit eq 'days' ? ($pl ? ' dagar' : ' dag') : ($pl ? ' timmar' : ' timma') );
 	if ($rule->itemtype ne '*') {
 	    $hasitype = 1;
 	} elsif ($hasitype) {
 	    next;
 	}
-	if ($rule->branchcode ne '*') {
+	if (defined $branchcode && $rule->branchcode ne '*') {
 	    $hasbranch = 1;
 	} elsif ($hasbranch) {
 	    next;
@@ -107,6 +123,18 @@ sub  authval {
 
 sub reset {
     my $self = shift;
+
+    $self->{params} = shift;
+}
+
+sub params {
+    my $self = shift;
+
+    return $self->{params};
+}
+
+sub parameters {
+    return ['branchcode', 'categorycode'];
 }
 
 

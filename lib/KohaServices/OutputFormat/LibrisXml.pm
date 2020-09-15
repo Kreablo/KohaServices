@@ -22,6 +22,7 @@ sub new {
 
 sub reset {
     my $self = shift;
+    my $params = shift;
 
     my $doc = new XML::DOM::Document();
 
@@ -36,7 +37,7 @@ sub reset {
     $self->{item_info} = $item_info;
     $self->{count} = 1;
 
-    $self->SUPER::reset();
+    $self->SUPER::reset( $params );
 }
 
 sub add {
