@@ -50,6 +50,10 @@ sub policy {
 
     my $item = Koha::Items->find( $row->{itemnumber} );
 
+    if (defined $self->params->{policy} && $self->params->{policy} eq 'itemtype' && defined $row->{itemtype_description}) {
+	return (1, $row->{itemtype_description});
+    }
+
     my $params = {
 	    itemtype     => { 'in' => [$item->effective_itemtype, '*'] }
     };
@@ -134,7 +138,7 @@ sub params {
 }
 
 sub parameters {
-    return ['branchcode', 'categorycode'];
+    return ['branchcode', 'categorycode', 'policy'];
 }
 
 
