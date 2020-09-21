@@ -1,7 +1,7 @@
 package KohaServices::OutputFormat;
 
 use Koha::Items;
-use Koha::IssuingRules;
+use Koha::CirculationRules;
 use utf8;
 use strict;
 use Data::Dumper;
@@ -69,7 +69,7 @@ sub policy {
 	$params->{branchcode} = { 'in' => [(split ',', $branchcode), '*'] };
     }
 
-    my @rules = Koha::IssuingRules->search(
+    my @rules = Koha::CirculationRules->search(
 	$params,
 	{
 	    order_by => {
