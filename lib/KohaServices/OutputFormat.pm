@@ -21,7 +21,7 @@ sub status {
 	return (0, $notloan, '', '');
     }
     my $lost = $self->authval($row, 'lost');
-    if (defined($lost) && $row->{lost}) {
+    if (defined($lost) && $row->{itemlost}) {
 	return (0, $lost, defined($row->{'itemlost_on'}) ? ('Förlorad den: ', substr($row->{'itemlost_on'}, 0, 10))  : ('', ''));
     }
     my $damaged = $self->authval($row, 'damaged');
