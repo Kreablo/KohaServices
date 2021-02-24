@@ -69,7 +69,9 @@ sub policy {
 	$params->{branchcode} = { 'in' => [(split ',', $branchcode), '*'] };
     }
 
-    my @rules = Koha::CirculationRules->search(
+    $params->{rule_name} = { 'in' => ['issuelength', 'lengthunit'] };
+
+    my @rs = Koha::CirculationRules->search(
 	$params,
 	{
 	    order_by => {
@@ -77,19 +79,41 @@ sub policy {
 	    }
 	});
 
+    my %rules = ();
+    my @rules = ();
+
+    for my $rule (@rules) {
+        my $key = $rule->branchcode . '-' . $rule->categorycode . '-' . $rule->itemtype;
+
+        my $v = $rules{$key};
+
+        if (!defined $v) {
+            $v = {
+                branchcode => $rule->branchcode,
+                categorycode => $rule->categorycode,
+                itemtype => $rule->categorycode
+            };
+            $rules{$key} = $v;
+            push @rules, $v;
+        }
+
+        $v->{$rule->rule_name} = $rule->rule_value;
+    }
+
+
     my %unique_policies = ();
     my $hasitype = 0;
     my $hasbranch = 0;
     for my $rule (@rules) {
-	next unless defined $rule->issuelength && $rule->issuelength;
-	my $pl = $rule->issuelength != 1;
-	my $length = $rule->issuelength . ( $rule->lengthunit eq 'days' ? ($pl ? ' dagar' : ' dag') : ($pl ? ' timmar' : ' timma') );
-	if ($rule->itemtype ne '*') {
+	next unless defined $rule->{issuelength} && $rule->{issuelength};
+	my $pl = $rule->{issuelength} != 1;
+	my $length = $rule->{issuelength} . ( $rule->{lengthunit} eq 'days' ? ($pl ? ' dagar' : ' dag') : ($pl ? ' timmar' : ' timma') );
+	if ($rule->{itemtype} ne '*') {
 	    $hasitype = 1;
 	} elsif ($hasitype) {
 	    next;
 	}
-	if (defined $branchcode && $rule->branchcode ne '*') {
+	if (defined $branchcode && $rule->{branchcode} ne '*') {
 	    $hasbranch = 1;
 	} elsif ($hasbranch) {
 	    next;

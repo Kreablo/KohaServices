@@ -1,6 +1,6 @@
 package KohaServices::App;
 
-our $VERSION = '1.8';
+our $VERSION = '1.9';
 
 use URI::Query;
 
