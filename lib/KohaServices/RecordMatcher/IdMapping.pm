@@ -1,14 +1,17 @@
 package KohaServices::RecordMatcher::IdMapping;
 
-use Moose;
-use Carp;
+use Modern::Perl;
 
-has 'context' => (
-    is => 'ro',
-    isa => 'C4::Context'
-    );
+sub new {
+    my $class = shift;
+    my $conf = shift;
 
-__PACKAGE__->meta->make_immutable;
+    my $self = {};
+
+    bless $self, $class;
+
+    return $self;
+}
 
 sub _add {
     my ($w, $par, $pend_w, $pend_end, $where, $pending, $params_in, $params_out) = @_;
@@ -40,10 +43,13 @@ sub _add {
     delete($params_in->{$par});
 }
 
-sub get_biblioitem {
-    my ($self, %params) = @_;
+sub match {
+    my ($self, $env) = @_;
 
+    my %params = %$env;
     my %params_clone = %params;
+
+    my $context = new C4::Context;
 
     my $where = '';
     my @params = ();
@@ -60,11 +66,11 @@ sub get_biblioitem {
     $add->("issn LIKE CONCAT(?, '\%')", 'issn', ' OR ISNULL(issn) AND ');
 
     if (+keys(%params) > 0) {
-        croak("Unknown parameters: " . join(", ", keys %params));
+        return(0, "Unknown parameters: " . join(", ", keys %params));
     }
 
     if (+@params == 0) {
-        croak("No parameters given!");
+        return(0, "No parameters given!");
     }
 
     my $row = $self->do_query($where, @params);
@@ -73,7 +79,11 @@ sub get_biblioitem {
         $row = $self->do_query_slow( %params_clone );
     }
 
-    return $row;
+    if (!defined($row)) {
+        return (1, {});
+    }
+
+    return (1, $row);
 }
 
 sub do_query {
@@ -86,14 +96,17 @@ WHERE
     $where;
 EOF
 
-    my $sth = $self->context->dbh->prepare($q);
-    my $rv = $sth->execute(@params) or croak "Query failed.";
+    my $context = new C4::Context;
+    my $sth = $context->dbh->prepare($q);
+    my $rv = $sth->execute(@params);
+
+    return undef unless $rv;
 
     if ($sth->rows == 0) {
         return undef;
     } else {
         if ($sth->rows > 1) {
-            carp("More than one 1 line mathed.  Query: $q params: " . join(", ", @params));
+            warn("More than one 1 line mathed.  Query: $q params: " . join(", ", @params));
         }
     }
 
@@ -129,8 +142,11 @@ WHERE
 EOF
 
 
-    my $sth = $self->context->dbh->prepare($q);
-    my $rv = $sth->execute( @params ) or croak "Query failed!";
+    my $context = new C4::Context;
+    my $sth = $context->dbh->prepare($q);
+    my $rv = $sth->execute( @params );
+
+    return undef unless $rv;
 
     if ($sth->rows == 0) {
 
@@ -176,8 +192,14 @@ EOF
         my @foo = map {'?'} @vals;
         $insert .= join(", ", @foo);
         $insert .=  ");";
-        $sth = $self->context->dbh->prepare($insert);
-        $rv = $sth->execute( @vals ) or croak "Failed to insert values!";
+        $sth = $context->dbh->prepare($insert);
+        $rv = $sth->execute( @vals );
+                
+        if (!$rv) {
+            warn "Failed to insert values!";
+        }
+
+
     }
 
     return $result;
@@ -185,7 +207,10 @@ EOF
 
 sub create_table {
     my $self = shift;
-    $self->context->dbh->do(<<"EOF");
+
+    my $context = new C4::Context;
+
+    $context->dbh->do(<<"EOF");
 CREATE TABLE `kreablo_idmapping` (
     `idmap` int NOT NULL AUTO_INCREMENT,
     `biblioitemnumber` int(11) NOT NULL,
@@ -199,7 +224,9 @@ CREATE TABLE `kreablo_idmapping` (
 EOF
 }
 
-no Moose;
+sub parameters {
+    return ['libris_bibid', 'isbn', 'issn', 'libris_99'];
+}
 
 1;
 
