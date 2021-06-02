@@ -100,9 +100,7 @@ SELECT DISTINCT items.itemnumber,
                 restricted_values.lib             AS restricted_lib,
                 itemlost_on,
                 issues.date_due,
-                                (SELECT COUNT(itemnumber) FROM hold_fill_targets WHERE hold_fill_targets.itemnumber = items.itemnumber) +
-                (SELECT COUNT(reserve_id) FROM reserves          WHERE reserves.itemnumber          = items.itemnumber) +
-                                (SELECT COUNT(itemnumber) FROM tmp_holdsqueue    WHERE tmp_holdsqueue.itemnumber    = items.itemnumber) AS n_reservations
+                (SELECT count(*) FROM reserves AS r WHERE r.biblionumber=items.biblionumber) AS n_reservations
 FROM items
      JOIN branches ON branchcode = holdingbranch
      LEFT OUTER JOIN authorised_values AS ccode_values   ON ccode_values.authorised_value=ccode        AND ccode_values.category   = 'CCODE'

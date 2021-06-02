@@ -130,15 +130,18 @@ sub do_query_slow {
 
     $add->("isbn LIKE CONCAT(?, '%')", 'isbn', ' OR ISNULL(isbn) AND ');
     $add->('issn = ?', 'issn', ' OR ISNULL(issn) AND ');
-    $add->("(ExtractValue(marcxml, '//controlfield[\@tag=\"003\"]') REGEXP 'libr') AND ExtractValue(marcxml, '//controlfield[\@tag=\"001\"]') = ?", 'libris_bibid', ' OR ');
-    $add->("(ExtractValue(marcxml, '//controlfield[\@tag=\"003\"]') REGEXP 'libr') AND ExtractValue(marcxml, '//controlfield[\@tag=\"001\"]') = ?", 'libris_99', ' OR ');
+    $add->("(ExtractValue(metadata, '//controlfield[\@tag=\"003\"]') REGEXP 'libr') AND ExtractValue(metadata, '//controlfield[\@tag=\"001\"]') = ?", 'libris_bibid', ' OR ');
+    $add->("(ExtractValue(metadata, '//controlfield[\@tag=\"003\"]') REGEXP 'libr') AND ExtractValue(metadata, '//controlfield[\@tag=\"001\"]') = ?", 'libris_99', ' OR ');
 
     my $q = <<"EOF";
-SELECT biblionumber, biblioitems.biblioitemnumber, isbn, issn, ExtractValue(marcxml, '//controlfield[\@tag=\"001\"]') as controlnumber, ExtractValue(marcxml, '//controlfield[\@tag=\"003\"]') as idtype
+SELECT biblionumber, biblioitems.biblioitemnumber, isbn, issn, ExtractValue(metadata, '//controlfield[\@tag=\"001\"]') as controlnumber, ExtractValue(metadata, '//controlfield[\@tag=\"003\"]') as idtype
 FROM
-  biblioitems JOIN biblio USING (biblionumber)
+  biblioitems
+  JOIN biblio USING (biblionumber)
+  JOIN biblio_metadata USING(biblionumber)
 WHERE
-  $where;
+  biblio_metadata.format = 'marcxml' AND
+  ($where);
 EOF
 
 
@@ -215,7 +218,7 @@ CREATE TABLE `kreablo_idmapping` (
     `idmap` int NOT NULL AUTO_INCREMENT,
     `biblioitemnumber` int(11) NOT NULL,
     `kidm_bibid` mediumtext COLLATE utf8_unicode_ci,
-    `kidm_99` mediumtext COLLATE utf8_unicode_ci,
+    `kidm_99` mediumtext COLLATE utf8_unicode_ci DEFAULT NULL,
     PRIMARY KEY (`idmap`),
     KEY `kidm_bibid` (`kidm_bibid`(255)),
     KEY `kidm_99` (`kidm_99`(255)),
