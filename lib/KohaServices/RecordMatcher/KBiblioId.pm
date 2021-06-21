@@ -23,7 +23,7 @@ sub match {
     my $isbnjoin = '';
     my $branchjoin = '';
 
-    my $where = '1';
+    my $where = '0';
     my $ok = 0;
     my $bibid = defined $env->{bibid} ? $env->{bibid} : $env->{libris_bibid};
     my $isbn = $env->{isbn};
@@ -38,22 +38,22 @@ sub match {
     my @binds = ();
     
     if (defined $bibid) {
-	$where .= " AND marc003 = 'SELIBR'";
+	$where .= " OR marc003 = 'SELIBR'";
 	$where .= ' AND marc001 = ?';
 	push @binds, $bibid;
     } elsif (defined $l99) {
-	$where .= " AND marc003 = 'LIBRIS'";
+	$where .= " OR marc003 = 'LIBRIS'";
 	$where .= ' AND marc001 = ?';
 	push @binds, $l99;
     }
     if (defined $isbn) {
 	$isbnjoin = 'JOIN k_all_isbns USING(biblionumber)';
-	$where .= ' AND k_all_isbns.isbn = normalize_isbn(?)';
+	$where .= ' OR k_all_isbns.isbn = normalize_isbn(?)';
 	push @binds, $isbn;
     }
 
     if (defined $issn) {
-	$where .= ' AND issn = ?';
+	$where .= ' OR issn = ?';
 	push @binds, $issn;
     }
 
