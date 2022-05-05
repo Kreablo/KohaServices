@@ -1,6 +1,6 @@
 package KohaServices::App;
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 
 use URI::Query;
 
@@ -33,7 +33,7 @@ sub parameters {
         push @parameters, @$op;
     }
 
-    sort @parameters;
+    @parameters = sort @parameters;
     
     my @p = ();
     my $prev;

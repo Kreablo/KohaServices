@@ -1,5 +1,6 @@
 package KohaServices::RecordMatcher::KBiblioId;
 
+use C4::Context;
 use Modern::Perl;
 
 sub new {
@@ -31,28 +32,41 @@ sub match {
     my $issn = $env->{issn};
     my $branchcode = $env->{branchcode};
 
+    if (ref $bibid eq 'ARRAY') {
+        $bibid = @$bibid ? $bibid->[0] : undef;
+    }
+    if (ref $l99 eq 'ARRAY') {
+        $l99 = @$l99 ? $l99->[0] : undef;
+    }
+    if (ref $isbn eq 'ARRAY') {
+        $isbn = @$isbn ? $isbn->[0] : undef;
+    }
+    if (ref $issn eq 'ARRAY') {
+        $issn = @$issn ? $issn->[0] : undef;
+    }
+
     if (!(defined $bibid || defined $isbn || defined $l99 || defined $issn)) {
 	return (0, 'No search parameter!');
     }
 
     my @binds = ();
     
-    if (defined $bibid) {
-	$where .= " OR marc003 = 'SELIBR'";
+    if (defined $bibid && $bibid) {
+	$where .= " OR (marc003 = 'SELIBR' OR marc003 = 'SE-LIBR')";
 	$where .= ' AND marc001 = ?';
 	push @binds, $bibid;
-    } elsif (defined $l99) {
+    } elsif (defined $l99 && $l99) {
 	$where .= " OR marc003 = 'LIBRIS'";
 	$where .= ' AND marc001 = ?';
 	push @binds, $l99;
     }
-    if (defined $isbn) {
+    if (defined $isbn && $isbn) {
 	$isbnjoin = 'JOIN k_all_isbns USING(biblionumber)';
 	$where .= ' OR k_all_isbns.isbn = normalize_isbn(?)';
 	push @binds, $isbn;
     }
 
-    if (defined $issn) {
+    if (defined $issn && $issn) {
 	$where .= ' OR issn = ?';
 	push @binds, $issn;
     }
